@@ -14,14 +14,13 @@ import (
 var testQueries *Queries
 var pool *pgxpool.Pool
 
-
 func TestMain(m *testing.M) {
 	var err error
 
-	config, err := util.LoadConfig("../..")
-	if err != nil {
-		log.Fatal("Error parsing database config: ", err)
-	}
+	config, _ := util.LoadConfig("../..")
+	// if err != nil {
+	// 	log.Fatal("Error parsing database config: ", err)
+	// }
 
 	pool, err = pgxpool.New(context.Background(), config.DBSource)
 	if err != nil {
