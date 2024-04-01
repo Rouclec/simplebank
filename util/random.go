@@ -47,7 +47,7 @@ func RandomBalance(currency string) float64 {
 		"USD": {Rate: 1.00},   // USD per USD
 	}
 
-	return float64(RandomInt(int64(amounts[currency].Rate)*100, int64(amounts[currency].Rate)*100*100))
+	return float64(RandomInt(int64(amounts[currency].Rate)*100*10, int64(amounts[currency].Rate)*100*100))
 }
 
 func RandomCurrency() string {
