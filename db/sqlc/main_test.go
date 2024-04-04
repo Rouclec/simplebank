@@ -23,7 +23,7 @@ func TestMain(m *testing.M) {
 	config := util.Config{
 		DBSource:            "postgresql://postgres:changemeinprod%21@localhost:5432/simple_bank?sslmode=disable",
 		MigrationURL:        "file://db/migration",
-		ServerAddress:       "0.0.0:8080",
+		ServerAddress:       "0.0.0.0:8080",
 		TokenSymmetricKey:   util.RandomString(32),
 		AccessTokenDuration: time.Minute * 15,
 		Domain:              "localhost",
