@@ -11,7 +11,6 @@ import (
 	"github.com/rouclec/simplebank/util"
 )
 
-
 func main() {
 
 	config, err := util.LoadConfig(".")
@@ -25,7 +24,11 @@ func main() {
 	}
 
 	store := db.NewStore(pool)
-	server := api.NewServer(store)
+	server, err := api.NewServer(config, store)
+
+	if err != nil {
+		log.Fatal("error creating server: ", err)
+	}
 
 	err = server.Start(config.ServerAddress)
 

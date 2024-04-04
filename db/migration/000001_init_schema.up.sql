@@ -18,8 +18,7 @@ CREATE TABLE "transfers" (
   "from_account_id" bigint NOT NULL,
   "to_account_id" bigint NOT NULL,
   "amount" float NOT NULL,
-  "from_currency" varchar NOT NULL,
-  "to_currency" varchar NOT NULL,
+  "currency" varchar NOT NULL,
   "created_at" timestamptz NOT NULL DEFAULT (now())
 );
 

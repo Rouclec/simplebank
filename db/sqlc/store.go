@@ -3,12 +3,17 @@ package db
 import (
 	"context"
 	"fmt"
-	"strconv"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/rouclec/simplebank/util"
 )
 
-type Store struct {
+type Store interface {
+	Querier
+	TransferTx(ctx context.Context, arg TransferTxRequest) (TransfersTxResponse, error)
+}
+
+type SQLStore struct {
 	*Queries
 	pool *pgxpool.Pool
 }
@@ -17,6 +22,7 @@ type TransferTxRequest struct {
 	FromAccountID int64   `json:"from_account_id"`
 	ToAccountID   int64   `json:"to_account_id"`
 	Amount        float64 `json:"amount"`
+	Currency      string  `json:"currency"`
 }
 
 type TransfersTxResponse struct {
@@ -28,19 +34,16 @@ type TransfersTxResponse struct {
 }
 
 // CurrencyRate represents the exchange rate for a currency relative to USD
-type CurrencyRate struct {
-	Rate float64 `json:"rate"`
-}
 
-func NewStore(pool *pgxpool.Pool) *Store {
-	return &Store{
+func NewStore(pool *pgxpool.Pool) Store {
+	return &SQLStore{
 		pool:    pool,
 		Queries: New(pool),
 	}
 }
 
 // Executes a function withing a database transaction
-func (store *Store) execTx(ctx context.Context, fn func(*Queries) error) error {
+func (store *SQLStore) execTx(ctx context.Context, fn func(*Queries) error) error {
 	tx, err := store.pool.Begin(ctx)
 
 	if err != nil {
@@ -61,46 +64,15 @@ func (store *Store) execTx(ctx context.Context, fn func(*Queries) error) error {
 	return tx.Commit(ctx)
 }
 
-func converter(fromCurrency string, toCurrency string, amount float64) (float64, error) {
-
-	rates := map[string]CurrencyRate{
-		"EUR": {Rate: 1.1},    // Euros per USD
-		"XAF": {Rate: 607.29}, // West African Francs per USD
-		"CAD": {Rate: 1.35},   // Canadian dollar per USD
-		"USD": {Rate: 1},      // USD per USD
-	}
-
-	if _, ok := rates[fromCurrency]; !ok {
-		return 0, fmt.Errorf("unsupported currency: %s", fromCurrency)
-	}
-	if _, ok := rates[toCurrency]; !ok {
-		return 0, fmt.Errorf("unsupported currency: %s", toCurrency)
-	}
-
-	if fromCurrency == toCurrency {
-		return amount, nil
-	}
-
-	// Convert to USD first
-	usdAmount := float64(amount) / rates[fromCurrency].Rate
-
-	// Convert from USD to target currency
-	convertedAmount := usdAmount * rates[toCurrency].Rate
-	roundedAmount := fmt.Sprintf("%.2f", convertedAmount)
-	parsedAmount, _ := strconv.ParseFloat(roundedAmount, 64)
-
-	return parsedAmount, nil
-}
-
-func (store *Store) TransferTx(ctx context.Context, arg TransferTxRequest) (TransfersTxResponse, error) {
+func (store *SQLStore) TransferTx(ctx context.Context, arg TransferTxRequest) (TransfersTxResponse, error) {
 	var response TransfersTxResponse
-
 
 	err := store.execTx(ctx, func(q *Queries) error {
 		var err error
 		var fromAccount Accounts
 		var toAccount Accounts
-		var convertedAmount float64
+		var fromAmount float64
+		var toAmount float64
 
 		if arg.FromAccountID < arg.ToAccountID {
 			// Acquire locks on the accounts based on their IDs
@@ -129,8 +101,18 @@ func (store *Store) TransferTx(ctx context.Context, arg TransferTxRequest) (Tran
 		}
 
 		// Perform the transfer logic
-		if balance := fromAccount.Balance; balance < arg.Amount {
-			err = fmt.Errorf("insufficient balance to perform transaction. Balance is %v %v but attempted to transfer %v %v", balance, fromAccount.Currency, arg.Amount, fromAccount.Currency)
+		fromAmount, err = util.Converter(arg.Currency, fromAccount.Currency, arg.Amount)
+		if err != nil {
+			return err
+		}
+
+		toAmount, err = util.Converter(arg.Currency, toAccount.Currency, arg.Amount)
+		if err != nil {
+			return err
+		}
+
+		if balance := fromAccount.Balance; balance < fromAmount {
+			err = fmt.Errorf("insufficient balance to perform transaction")
 			return err
 		}
 
@@ -138,21 +120,15 @@ func (store *Store) TransferTx(ctx context.Context, arg TransferTxRequest) (Tran
 			FromAccountID: arg.FromAccountID,
 			ToAccountID:   arg.ToAccountID,
 			Amount:        arg.Amount,
-			FromCurrency:  fromAccount.Currency,
-			ToCurrency:    toAccount.Currency,
+			Currency:      arg.Currency,
 		})
-		if err != nil {
-			return err
-		}
-
-		convertedAmount, err = converter(fromAccount.Currency, toAccount.Currency, arg.Amount)
 		if err != nil {
 			return err
 		}
 
 		response.ToEntry, err = q.CreateEntry(ctx, CreateEntryParams{
 			AccountID: arg.ToAccountID,
-			Amount:    convertedAmount,
+			Amount:    toAmount,
 		})
 		if err != nil {
 			return err
@@ -160,7 +136,7 @@ func (store *Store) TransferTx(ctx context.Context, arg TransferTxRequest) (Tran
 
 		response.FromEntry, err = q.CreateEntry(ctx, CreateEntryParams{
 			AccountID: arg.FromAccountID,
-			Amount:    -arg.Amount,
+			Amount:    -fromAmount,
 		})
 		if err != nil {
 			return err

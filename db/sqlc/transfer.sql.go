@@ -14,19 +14,17 @@ INSERT INTO transfers (
   from_account_id,
   to_account_id,
   amount,
-  from_currency,
-  to_currency
+  currency
 ) VALUES (
-  $1, $2, $3, $4, $5
-) RETURNING id, from_account_id, to_account_id, amount, from_currency, to_currency, created_at
+  $1, $2, $3, $4
+) RETURNING id, from_account_id, to_account_id, amount, currency, created_at
 `
 
 type CreateTransferParams struct {
 	FromAccountID int64   `json:"from_account_id"`
 	ToAccountID   int64   `json:"to_account_id"`
 	Amount        float64 `json:"amount"`
-	FromCurrency  string  `json:"from_currency"`
-	ToCurrency    string  `json:"to_currency"`
+	Currency      string  `json:"currency"`
 }
 
 func (q *Queries) CreateTransfer(ctx context.Context, arg CreateTransferParams) (Transfers, error) {
@@ -34,8 +32,7 @@ func (q *Queries) CreateTransfer(ctx context.Context, arg CreateTransferParams) 
 		arg.FromAccountID,
 		arg.ToAccountID,
 		arg.Amount,
-		arg.FromCurrency,
-		arg.ToCurrency,
+		arg.Currency,
 	)
 	var i Transfers
 	err := row.Scan(
@@ -43,15 +40,14 @@ func (q *Queries) CreateTransfer(ctx context.Context, arg CreateTransferParams) 
 		&i.FromAccountID,
 		&i.ToAccountID,
 		&i.Amount,
-		&i.FromCurrency,
-		&i.ToCurrency,
+		&i.Currency,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const getTransfer = `-- name: GetTransfer :one
-SELECT id, from_account_id, to_account_id, amount, from_currency, to_currency, created_at FROM transfers
+SELECT id, from_account_id, to_account_id, amount, currency, created_at FROM transfers
 WHERE id = $1 LIMIT 1
 `
 
@@ -63,15 +59,14 @@ func (q *Queries) GetTransfer(ctx context.Context, id int64) (Transfers, error) 
 		&i.FromAccountID,
 		&i.ToAccountID,
 		&i.Amount,
-		&i.FromCurrency,
-		&i.ToCurrency,
+		&i.Currency,
 		&i.CreatedAt,
 	)
 	return i, err
 }
 
 const listTransfers = `-- name: ListTransfers :many
-SELECT id, from_account_id, to_account_id, amount, from_currency, to_currency, created_at FROM transfers
+SELECT id, from_account_id, to_account_id, amount, currency, created_at FROM transfers
 WHERE 
     from_account_id = $1 OR
     to_account_id = $2
@@ -106,8 +101,7 @@ func (q *Queries) ListTransfers(ctx context.Context, arg ListTransfersParams) ([
 			&i.FromAccountID,
 			&i.ToAccountID,
 			&i.Amount,
-			&i.FromCurrency,
-			&i.ToCurrency,
+			&i.Currency,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err

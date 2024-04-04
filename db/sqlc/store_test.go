@@ -2,9 +2,10 @@ package db
 
 import (
 	"context"
-	"math"
+	"fmt"
 	"testing"
 
+	"github.com/rouclec/simplebank/util"
 	"github.com/stretchr/testify/require"
 )
 
@@ -16,17 +17,8 @@ func TestTransferTx(t *testing.T) {
 
 	// run a concurrent transfer transaction
 	n := 5
-	var amount float64
 
-	amounts := map[string]CurrencyRate{
-		"EUR": {Rate: 1100},  // Euros per USD
-		"XAF": {Rate: 60729}, // West African Francs per USD
-		"CAD": {Rate: 135},   // Canadian dollar per USD
-		"USD": {Rate: 100},   // USD per USD
-	}
-
-
-	amount = amounts[account1.Currency].Rate
+	amount := 10.00
 
 	errs := make(chan error)
 
@@ -38,6 +30,7 @@ func TestTransferTx(t *testing.T) {
 				FromAccountID: account1.ID,
 				ToAccountID:   account2.ID,
 				Amount:        amount,
+				Currency:      "USD",
 			})
 
 			errs <- err
@@ -48,6 +41,10 @@ func TestTransferTx(t *testing.T) {
 	// check responses
 	existed := make(map[int]bool)
 	for i := 0; i < n; i++ {
+		var fromAmount float64
+		var toAmount float64
+		var conversionError error
+
 		err := <-errs
 
 		require.NoError(t, err)
@@ -58,6 +55,14 @@ func TestTransferTx(t *testing.T) {
 
 		//check transfer
 		transfer := response.Transfer
+
+		fromAmount, conversionError = util.Converter(transfer.Currency, response.FromAccount.Currency, transfer.Amount)
+
+		require.NoError(t, conversionError)
+
+		toAmount, conversionError = util.Converter(transfer.Currency, response.ToAccount.Currency, transfer.Amount)
+
+		require.NoError(t, conversionError)
 
 		require.NotEmpty(t, transfer)
 
@@ -78,7 +83,8 @@ func TestTransferTx(t *testing.T) {
 		require.NotEmpty(t, fromEntry)
 
 		require.Equal(t, fromEntry.AccountID, account1.ID)
-		require.Equal(t, fromEntry.Amount, -amount)
+		require.NoError(t, err)
+		require.Equal(t, fromEntry.Amount, -fromAmount)
 
 		require.NotZero(t, fromEntry.ID)
 		require.NotZero(t, fromEntry.CreatedAt)
@@ -90,8 +96,6 @@ func TestTransferTx(t *testing.T) {
 		toEntry := response.ToEntry
 
 		require.NotEmpty(t, toEntry)
-
-		toAmount, err := converter(transfer.FromCurrency, transfer.ToCurrency, amount)
 
 		require.NoError(t, err)
 
@@ -120,7 +124,10 @@ func TestTransferTx(t *testing.T) {
 
 		require.True(t, diff > 0)
 
-		k := int(diff / amount)
+		convertedDiff, err := util.Converter(response.FromAccount.Currency, "USD", diff)
+		require.NoError(t, err)
+
+		k := int(convertedDiff / amount)
 		require.True(t, k >= 1 && k <= n)
 		require.NotContains(t, existed, k)
 
@@ -128,7 +135,6 @@ func TestTransferTx(t *testing.T) {
 	}
 
 	//check final updated balance of both accounts
-	tolerance := 0.001 // Adjust tolerance as needed
 
 	updateAccount1, err := testQueries.GetAccount(context.Background(), account1.ID)
 	require.NoError(t, err)
@@ -137,11 +143,17 @@ func TestTransferTx(t *testing.T) {
 	require.NoError(t, err)
 
 	// require.Equal(t, updateAccount1.Balance, account1.Balance-float64(n)*amount)
-	require.True(t, math.Abs(updateAccount1.Balance-(account1.Balance-float64(n)*amount)) <= tolerance)
 
-	amountReceived, _ := converter(updateAccount1.Currency, updateAccount2.Currency, amount)
-	// require.Equal(t, updateAccount2.Balance, account2.Balance+float64(n)*amountReceived)
-	require.True(t, math.Abs(updateAccount2.Balance-(account2.Balance+float64(n)*amountReceived)) <= tolerance)
+	amountSent, err := util.Converter("USD", updateAccount1.Currency, (float64(n) * amount))
+
+	require.NoError(t, err)
+
+	require.Equal(t, fmt.Sprintf("%.2f", updateAccount1.Balance), fmt.Sprintf("%.2f", (account1.Balance-amountSent)))
+
+	amountReceived, err := util.Converter("USD", updateAccount2.Currency, (float64(n) * amount))
+	require.NoError(t, err)
+
+	require.Equal(t, fmt.Sprintf("%.2f", updateAccount2.Balance), fmt.Sprintf("%.2f", (account2.Balance+amountReceived)))
 }
 
 func TestTransferTxDeadlock(t *testing.T) {
@@ -159,13 +171,6 @@ func TestTransferTxDeadlock(t *testing.T) {
 	// run a concurrent transfer transaction
 	n := 10
 
-	amounts := map[string]CurrencyRate{
-		"EUR": {Rate: 11.0},   // Euros per USD
-		"XAF": {Rate: 6072.9}, // West African Francs per USD
-		"CAD": {Rate: 13.5},   // Canadian dollar per USD
-		"USD": {Rate: 10.0},   // USD per USD
-	}
-
 	errs := make(chan error)
 
 	for i := 0; i < n; i++ {
@@ -177,15 +182,14 @@ func TestTransferTxDeadlock(t *testing.T) {
 			toAccountID = account1.ID
 		}
 
-		fromAccount := accountMap[fromAccountID]
-
-		amount := amounts[fromAccount.Currency].Rate
+		amount := float64(10.00)
 
 		go func() {
 			_, err := store.TransferTx(context.Background(), TransferTxRequest{
 				FromAccountID: fromAccountID,
 				ToAccountID:   toAccountID,
 				Amount:        amount,
+				Currency:      "USD",
 			})
 
 			errs <- err

@@ -29,8 +29,16 @@ type Transfers struct {
 	FromAccountID int64 `json:"from_account_id"`
 	ToAccountID   int64 `json:"to_account_id"`
 	// it must be positive
-	Amount       float64   `json:"amount"`
-	FromCurrency string    `json:"from_currency"`
-	ToCurrency   string    `json:"to_currency"`
-	CreatedAt    time.Time `json:"created_at"`
+	Amount    float64   `json:"amount"`
+	Currency  string    `json:"currency"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type Users struct {
+	Username          string    `json:"username"`
+	Password          string    `json:"password"`
+	FullName          string    `json:"full_name"`
+	Email             string    `json:"email"`
+	PasswordChangedAt time.Time `json:"password_changed_at"`
+	CreatedAt         time.Time `json:"created_at"`
 }
