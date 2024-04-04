@@ -10,10 +10,11 @@ import (
 )
 
 func createRandomAccount(t *testing.T) Accounts {
+	user := createRandomUser(t)
 	currency := util.RandomCurrency()
 
 	arg := CreateAccountParams{
-		Owner:    util.RandomOwner(),
+		Owner:    user.Username,
 		Balance:  util.RandomBalance(currency),
 		Currency: currency,
 	}
@@ -85,21 +86,39 @@ func TestDeleteAccount(t *testing.T) {
 }
 
 func TestListAccounts(t *testing.T) {
+	var lastAccount Accounts
 	for i := 0; i < 10; i++ {
-		createRandomAccount(t)
+		lastAccount = createRandomAccount(t)
 	}
 
 	arg := ListAccountsParams{
-		Limit: 5,
-		Offset: 5,
+		Owner:  lastAccount.Owner,
+		Limit:  5,
+		Offset: 0,
 	}
 
 	accounts, err := testQueries.ListAccounts(context.Background(), arg)
 
 	require.NoError(t, err)
-	require.Len(t, accounts, 5)
+	require.NotEmpty(t, accounts)
 
 	for _, account := range accounts {
 		require.NotEmpty(t, account)
+		require.Equal(t, lastAccount.Owner, account.Owner)
 	}
+}
+
+func TestUpdateAccountEdgeCases(t *testing.T) {
+	account := createRandomAccount(t)
+
+	// Test updating with zero balance
+	arg := UpdateAccountParams{
+		ID:      account.ID,
+		Balance: 0.00,
+	}
+
+	updatedAccount, err := testQueries.UpdateAccount(context.Background(), arg)
+
+	require.NoError(t, err)
+	require.Equal(t, updatedAccount.Balance, 0.00)
 }
