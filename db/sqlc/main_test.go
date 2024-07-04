@@ -19,11 +19,11 @@ func TestMain(m *testing.M) {
 
 	var err error
 
-
 	config := util.Config{
 		DBSource:            "postgresql://postgres:changemeinprod%21@localhost:5432/simple_bank?sslmode=disable",
 		MigrationURL:        "file://db/migration",
-		ServerAddress:       "0.0.0.0:8080",
+		HTTPServerAddress:   "0.0.0.0:8080",
+		GRPCServerAddress:   "0.0.0.0:9090",
 		TokenSymmetricKey:   util.RandomString(32),
 		AccessTokenDuration: time.Minute * 15,
 		Domain:              "localhost",
