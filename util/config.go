@@ -12,8 +12,12 @@ type Config struct {
 	Environment         string        `mapstructure:"ENVIRONMENT"`
 	DBSource            string        `mapstructure:"DB_SOURCE"`
 	MigrationURL        string        `mapstructure:"MIGRATION_URL"`
+<<<<<<< HEAD
 	HTTPServerAddress   string        `mapstructure:"HTTP_SERVER_ADDRESS"`
 	GRPCServerAddress   string        `mapstructure:"GRPC_SERVER_ADDRESS"`
+=======
+	ServerAddress       string        `mapstructure:"SERVER_ADDRESS"`
+>>>>>>> a22ab6ce71b75d619c424940f0e4230802fe8661
 	TokenSymmetricKey   string        `mapstructure:"TOKEN_SYMMETRIC_KEY"`
 	AccessTokenDuration time.Duration `mapstructure:"ACCESS_TOKEN_DURATION"`
 	Domain              string        `mapstructure:"DOMAIN"`
